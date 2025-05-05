@@ -54,7 +54,7 @@ def main(cfg: DictConfig):
     out_dir = cfg.output_dir
     os.makedirs(out_dir, exist_ok=True)
 
-    num_episodes = cfg.collect_data.num_episodes
+    num_episodes = cfg.num_episodes
     for ep in range(num_episodes):
         # マップ更新
         map_id = ep % len(MAP_DICT)
