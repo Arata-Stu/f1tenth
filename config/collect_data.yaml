@@ -6,7 +6,7 @@ defaults:
 num_episodes: ???
 num_steps: 10000
 
-output_dir: ./data/ ## output h5 file
+output_dir: ./datasets/ ## output h5 file
 
 render: True
 render_mode: human ## human or human_fast
