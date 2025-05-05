@@ -1,0 +1,13 @@
+name: TD3
+gamma: 0.99
+tau: 0.005
+lr: 3e-4
+policy_noise: 0.2
+noise_clip: 0.5
+policy_freq: 2
+backbone:
+  name: mlp ## tiny_lider_net or mlp
+  input_dim: 120
+  k_frames: 2 ## 2フレーム間の情報を使う
+  downsample_n: 60 ## 1080 -> 60
+ckpt_path: null

@@ -1,0 +1,4 @@
+type: N-Step-OffPolicy
+size: 1e6
+n_step: 3 ## 3~5 推奨
+gamma: 0.99 ## 割引率

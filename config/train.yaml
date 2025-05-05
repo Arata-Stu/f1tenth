@@ -1,0 +1,24 @@
+defaults:
+  - vehicle: default
+  - envs: default 
+  - reward: ???
+  - agent: ???
+  - buffer: ???
+
+num_episodes: 1000
+num_steps: 10000
+batch_size: 128
+save_ckpt_dir: ./ckpts/
+max_eval_ckpts: 3
+
+eval_interval: 10
+num_eval_episodes: 1
+
+use_wandb: False
+wandb_project: f1tenth
+wandb_run_name: null
+wandb_mode: online
+
+hydra:
+  run:
+    dir: ./outputs/train/${now:%Y-%m-%d}/${now:%H-%M-%S}
