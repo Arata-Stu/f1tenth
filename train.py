@@ -47,7 +47,7 @@ def main(cfg: DictConfig):
     criterion = nn.MSELoss()
 
     # TensorBoard 用 SummaryWriter
-    tb_log_dir = cfg.train.tb_log_dir
+    tb_log_dir = cfg.train.log_dir
     os.makedirs(tb_log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=tb_log_dir)
 

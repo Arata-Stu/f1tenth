@@ -6,3 +6,4 @@ train:
   lr: 1e-3
   epochs: 20
   ckpt_path: ./ckpts/tinylidarnet.pth
+  log_dir: ./logs/train/
