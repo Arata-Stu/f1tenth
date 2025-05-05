@@ -27,7 +27,7 @@ def main(cfg: DictConfig):
     # --- 環境とプランナーの初期化 ---
     map_cfg = cfg.envs.map
     map_manager = MapManager(
-        map_name=map_cfg.name,
+        map_name=MAP_DICT[0],
         map_ext=map_cfg.ext,
         speed=map_cfg.speed,
         downsample=map_cfg.downsample,
@@ -55,6 +55,7 @@ def main(cfg: DictConfig):
     os.makedirs(out_dir, exist_ok=True)
 
     num_episodes = cfg.num_episodes
+    num_steps = cfg.num_steps
     for ep in range(num_episodes):
         # マップ更新
         map_id = ep % len(MAP_DICT)
@@ -76,7 +77,7 @@ def main(cfg: DictConfig):
         actions_dset = f.create_dataset('actions', shape=(0,2), maxshape=(None,2), dtype='float32', chunks=(1,2), **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE))
 
         # データ収集ループ
-        while True:
+        for step in range(num_steps):
             steer, speed = planner.plan(obs, gain=0.20)
             action = np.array([steer, speed], dtype='float32').reshape(1,-1)
             scan = obs['scans'][0].astype('float32').reshape(1,-1)
@@ -89,7 +90,7 @@ def main(cfg: DictConfig):
             prev_dset[idx] = prev_action
             actions_dset[idx] = action
 
-            next_obs, reward, terminated, truncated, info = env.step(action.flatten())
+            next_obs, reward, terminated, truncated, info = env.step(action)
             if truncated:
                 print(f"Episode {ep} truncated (failure), discarding data: {out_path}")
             if terminated or truncated:
