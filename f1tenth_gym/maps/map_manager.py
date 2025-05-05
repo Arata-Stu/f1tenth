@@ -46,10 +46,6 @@ class MapManager:
         self.race_line_path   = os.path.join(self.map_base_dir, map_name + '_raceline.csv')
 
     def _compute_speeds(self, wpts: np.ndarray) -> np.ndarray:
-        """
-        wpts: shape=(N,2)
-        動的速度を計算するか、定速を返すかを判定
-        """
         N = len(wpts)
         if not self.use_dynamic_speed:
             return np.full((N,1), self.speed, dtype=np.float32)
@@ -66,14 +62,32 @@ class MapManager:
             theta = np.arccos(cos_t)
             curvature[i] = theta / n2
 
-        # 横加速度制限から最高速を逆算
-        with np.errstate(divide='ignore'):
-            v_curve = np.sqrt(self.a_lat_max / np.maximum(curvature, 1e-6))
-        v_curve = np.minimum(v_curve, self.speed)
+        # 曲率スムージング
+        curvature_smooth = gaussian_filter1d(curvature, sigma=self.smooth_sigma)
 
-        # 平滑化
-        v_smooth = gaussian_filter1d(v_curve, sigma=self.smooth_sigma)
-        return v_smooth.reshape(-1,1).astype(np.float32)
+        # カーブクラス分け
+        bins = [0.01, 0.04, 0.1]
+        curve_classes = np.digitize(curvature_smooth, bins=bins)
+        self.curve_classes = curve_classes
+
+        # クラスごとのベース速度
+        curve_base_speed = [self.speed, 0.8*self.speed, 0.6*self.speed, 0.4*self.speed]
+
+        # 微調整係数を曲率に応じて計算（正規化: 大きい曲率 → 小さい係数）
+        max_curv = np.max(curvature_smooth)
+        min_curv = np.min(curvature_smooth)
+        epsilon = 1e-6
+        norm_curvature = (curvature_smooth - min_curv) / (max_curv - min_curv + epsilon)
+        adjustment_factor = 1.0 - 0.5 * norm_curvature  # 0.5〜1.0の補正係数
+
+        # 最終速度計算
+        speeds = np.array([
+            curve_base_speed[cls] * adjustment_factor[i]
+            for i, cls in enumerate(curve_classes)
+        ], dtype=np.float32)
+
+        return speeds.reshape(-1, 1)
+
 
     def _load_map_data(self):
         """ウェイポイント読み込み→ダウンサンプル→速度付与→累積距離計算"""
