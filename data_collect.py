@@ -62,7 +62,7 @@ def main(cfg: DictConfig):
         env.update_map(map_name=name, map_ext=map_cfg.ext)
 
         # 初期観測と前回アクション
-        obs = env.reset()
+        obs, _ = env.reset()
         prev_action = np.zeros((1, 2), dtype='float32')
         idx = 0
         truncated = False
