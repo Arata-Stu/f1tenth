@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from tqdm import tqdm
 
 from src.data.h5_dataset import H5Dataset
 from src.models.TinyLidarNet import TinyLidarNet
@@ -50,9 +51,10 @@ def main(cfg: DictConfig):
 
     # トレーニングループ
     for epoch in range(cfg.train.epochs):
-        model.train()
         epoch_loss = 0.0
-        for batch in loader:
+        # バッチ進捗表示
+        for batch in tqdm(loader, desc=f"Epoch {epoch+1}/{cfg.train.epochs}", leave=False):
+            model.train()
             scan = batch['scan'].to(device).unsqueeze(1)  # (B,1,L)
             prev = batch['prev'].to(device)               # (B,A)
             target = batch['action'].to(device)           # (B,A)
@@ -67,13 +69,13 @@ def main(cfg: DictConfig):
             epoch_loss += loss.item() * scan.size(0)
 
         avg_loss = epoch_loss / len(dataset)
-        print(f"Epoch {epoch+1}/{cfg.train.epochs} loss={avg_loss:.6f}")
+        tqdm.write(f"Epoch {epoch+1}/{cfg.train.epochs} loss={avg_loss:.6f}")
 
         # ベストモデルの保存
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), ckpt_path)
-            print(f"Best model updated (loss={best_loss:.6f}) -> {ckpt_path}")
+            tqdm.write(f"Best model updated (loss={best_loss:.6f}) -> {ckpt_path}")
 
     print(f"Training completed. Best model saved at {ckpt_path} (loss={best_loss:.6f})")
 
