@@ -50,17 +50,21 @@ def main(cfg: DictConfig):
     render_flag = cfg.render
     render_mode = cfg.render_mode
 
-    # 出力ディレクトリ
-    out_dir = cfg.output_dir
-    os.makedirs(out_dir, exist_ok=True)
+    # ベース出力ディレクトリ
+    base_out_dir = cfg.output_dir
+    os.makedirs(base_out_dir, exist_ok=True)
 
     num_episodes = cfg.num_episodes
     num_steps = cfg.num_steps
     for ep in range(num_episodes):
         # マップ更新
         map_id = ep % len(MAP_DICT)
-        name = MAP_DICT[map_id]
+        name   = MAP_DICT[map_id]
         env.update_map(map_name=name, map_ext=map_cfg.ext)
+
+        # マップごとのディレクトリ作成
+        map_out_dir = os.path.join(base_out_dir, name)
+        os.makedirs(map_out_dir, exist_ok=True)
 
         # 初期観測と前回アクション
         obs, _ = env.reset()
@@ -70,38 +74,53 @@ def main(cfg: DictConfig):
 
         # ファイル名にエピソード番号を付与
         filename = f"{name}_speed{map_cfg.speed}_look{lookahead}_ep{ep}.h5"
-        out_path = os.path.join(out_dir, filename)
+        out_path = os.path.join(map_out_dir, filename)
+
+        # HDF5ファイル＆データセット作成
         f = h5py.File(out_path, 'w')
-        scans_dset = f.create_dataset('scans', shape=(0,1080), maxshape=(None,1080), dtype='float32', chunks=(1,1080), **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE))
-        prev_dset = f.create_dataset('prev_actions', shape=(0,2), maxshape=(None,2), dtype='float32', chunks=(1,2), **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE))
-        actions_dset = f.create_dataset('actions', shape=(0,2), maxshape=(None,2), dtype='float32', chunks=(1,2), **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE))
+        scans_dset = f.create_dataset(
+            'scans',
+            shape=(0,1080), maxshape=(None,1080),
+            dtype='float32', chunks=(1,1080),
+            **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
+        )
+        prev_dset = f.create_dataset(
+            'prev_actions',
+            shape=(0,2), maxshape=(None,2),
+            dtype='float32', chunks=(1,2),
+            **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
+        )
+        actions_dset = f.create_dataset(
+            'actions',
+            shape=(0,2), maxshape=(None,2),
+            dtype='float32', chunks=(1,2),
+            **hdf5plugin.Blosc(cname='zstd', clevel=5, shuffle=hdf5plugin.Blosc.SHUFFLE)
+        )
 
         # データ収集ループ
         for step in range(num_steps):
             steer, speed = planner.plan(obs, gain=0.20)
             action = np.array([steer, speed], dtype='float32').reshape(1,-1)
-            scan = obs['scans'][0].astype('float32').reshape(1,-1)
+            scan   = obs['scans'][0].astype('float32').reshape(1,-1)
 
-            # 保存
+            # データ追加
             scans_dset.resize(idx+1, axis=0)
             prev_dset.resize(idx+1, axis=0)
             actions_dset.resize(idx+1, axis=0)
-            scans_dset[idx] = scan
-            prev_dset[idx] = prev_action
+            scans_dset[idx]   = scan
+            prev_dset[idx]    = prev_action
             actions_dset[idx] = action
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             if truncated:
                 print(f"Episode {ep} truncated (failure), discarding data: {out_path}")
             if terminated or truncated:
-                # 終了
                 f.close()
-                # 失敗時はファイル削除
                 if truncated:
                     os.remove(out_path)
                 break
 
-            # 準備
+            # 次ステップ準備
             obs = next_obs
             prev_action = action
             idx += 1

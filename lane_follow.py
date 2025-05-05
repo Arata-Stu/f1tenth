@@ -1,77 +1,95 @@
-from f1tenth_gym.maps.map_manager import MapManager #/f1tenth_gym/map_manager.py から import
-from f1tenth_gym.f110_env import F110Env #/f1tenth_gym/f110_env.py から import
-from src.envs.wrapper import F110Wrapper #/src/envs/wrapper.py から import
-
-map_name = "BrandsHatch"  # マップ名
-map_ext = ".png"  # 拡張子
-num_beams = 1080 ## 2d Lidarのビーム数
-speed = 8.0 # m/s
-num_agents = 1 ## エージェントの数 1: 自車両
-downsample = 1 # way_point を 1/downsample にする 1: そのまま, 2: 1/2 にする
-
-## 車両のパラメータ (公式から引用)
-vehicle_params = {
-    "mu": 1.0489,
-    "C_Sf": 4.718,
-    "C_Sr": 5.4562,
-    "lf": 0.15875,
-    "lr": 0.17145,
-    "h": 0.074,
-    "m": 3.74,
-    "I": 0.04712,
-    "s_min": -1.0,
-    "s_max": 1.0,
-    "sv_min": -3.2,
-    "sv_max": 3.2,
-    "v_switch": 7.319,
-    "a_max": 9.51,
-    "v_min": -5.0,
-    "v_max": 10.0,
-    "width": 0.31,
-    "length": 0.58
-}
-
-## マップを管理するクラス
-map_manager = MapManager(map_name=map_name, map_ext=map_ext, speed=speed, downsample=downsample) 
-## F1tenthのgym環境
-env = F110Env(map=map_manager.map_path, map_ext=map_manager.map_ext, num_beams=num_beams, num_agents=num_agents, params=vehicle_params)
-env = F110Wrapper(env, map_manager=map_manager)
-obs, info = env.reset()
-
-from planner.purePursuit import PurePursuitPlanner #/src/planner/pure_pursuit.py から import
-
-wheelbase=(0.17145+0.15875)
-planner = PurePursuitPlanner(wheelbase=wheelbase, map_manager=map_manager, lookahead=0.3 ,max_reacquire=20.) 
-
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
+import hydra
+from omegaconf import DictConfig, OmegaConf
+from f1tenth_gym.maps.map_manager import MapManager
+from f1tenth_gym.f110_env import F110Env
+from src.envs.wrapper import F110Wrapper
+from src.planner.purePursuit import PurePursuitPlanner
+from f1tenth_gym.maps.map_manager import MAP_DICT
 
-# 可視化用の設定
-plt.ion()
-fig = plt.figure()
-ax = fig.add_subplot(111, polar=True)
-line, = ax.plot([], [], lw=2)
-ax.set_ylim(0, 30)  # LiDARの最大距離（適宜調整）
+@hydra.main(config_path="config", config_name="lane_follow", version_base="1.2")
+def main(cfg: DictConfig):
+    # --- 設定表示 ---
+    print(OmegaConf.to_yaml(cfg))
 
-# メインループ
-while True:
-    actions = []
-    steer, speed = planner.plan(obs, gain=0.20)
-    action = [steer, speed]
-    actions.append(action)
-    next_obs, reward, terminated, truncated, info = env.step(np.array(actions))
+    # --- Matplotlib センサ可視化設定 ---
+    plt.ion()
+    fig = plt.figure(figsize=(6,6))
+    ax = fig.add_subplot(111, polar=True)
+    line, = ax.plot([], [], lw=2)
+    ax.set_ylim(0, cfg.max_lidar_range)  # YAML 側で max_lidar_range を指定しておくと便利
 
-    # LiDARデータの可視化
-       # LiDARデータの可視化
-    scan = obs["scans"][0]  # (1080,)
-    angles = np.linspace(-2.35, 2.35, len(scan))  # LiDARの実際の視野角に合わせて修正
-    line.set_data(angles, scan)
-    plt.pause(0.001)
+    # --- MapManager & 環境初期化 ---
+    map_cfg = cfg.envs.map
+    
 
+    map_manager = MapManager(
+        map_name=MAP_DICT[0],
+        map_ext=map_cfg.ext,
+        speed=map_cfg.speed,
+        downsample=map_cfg.downsample,
+        use_dynamic_speed=map_cfg.use_dynamic_speed,
+        a_lat_max=map_cfg.a_lat_max,
+        lookahead=map_cfg.lookahead,
+        lookbehind=map_cfg.lookbehind,
+        a_acc_max=map_cfg.a_acc_max,
+        a_dec_max=map_cfg.a_dec_max,
+        sigma_accel=map_cfg.sigma_accel,
+        sigma_decel=map_cfg.sigma_decel,
+        window_size=map_cfg.window_size,
+        theta1=map_cfg.theta1,
+        theta2=map_cfg.theta2,
+        speed_factors=map_cfg.speed_factors
+    )
+    env = F110Env(
+        map=map_manager.map_path,
+        map_ext=map_manager.map_ext,
+        num_beams=cfg.num_beams,
+        num_agents=1,
+        params=cfg.vehicle
+    )
+    env = F110Wrapper(env, map_manager=map_manager)
 
-    if terminated or truncated:
-        print("terminated")
-        break
+    # --- Planner 初期化 ---
+    planner = PurePursuitPlanner(
+        wheelbase=cfg.planner.wheelbase,
+        map_manager=map_manager,
+        lookahead=cfg.planner.lookahead,
+        max_reacquire=cfg.planner.max_reacquire
+    )
 
-    obs = next_obs
-    # env.render()
+    # --- マップ切り替えループ ---
+    for map_name in MAP_DICT.values():
+        print(f"\n=== マップ: {map_name} ===")
+
+        # マップ更新＆リセット
+        env.update_map(map_name=map_name, map_ext=map_cfg.ext)
+        obs, info = env.reset()
+        terminated = truncated = False
+
+        # メインループ：センサ可視化 + 環境描画
+        while not (terminated or truncated):
+            # アクション計算
+            steer, speed_cmd = planner.plan(obs, gain=cfg.planner.gain)
+            action = np.array([[steer, speed_cmd]], dtype="float32")
+
+            # ステップ実行
+            next_obs, reward, terminated, truncated, info = env.step(action)
+
+            # LiDAR 可視化
+            scan   = obs["scans"][0]
+            # angles = np.linspace(-cfg.lidar_fov, cfg.lidar_fov, cfg.num_beams)
+            # line.set_data(angles, scan)
+            # plt.pause(0.0001)
+
+            # Gym 環境可視化
+            env.render(mode=cfg.render_mode) if cfg.render_mode else env.render()
+
+            obs = next_obs
+
+        print(f"マップ『{map_name}』終了  terminated={terminated}, truncated={truncated}")
+        input("Enter キーで次のマップへ…")
+
+if __name__ == "__main__":
+    main()
