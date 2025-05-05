@@ -16,6 +16,7 @@ class MapManager:
         map_name: str,
         map_dir: str = os.path.dirname(__file__),
         map_ext: str = '.png',
+        line_type: str = 'center',
         speed: float = 5.0,
         downsample: int = 1,
         use_dynamic_speed: bool = False,
@@ -25,6 +26,7 @@ class MapManager:
         # 基本設定をメンバに保持
         self.map_dir          = map_dir
         self.map_ext          = map_ext
+        self.line_type = line_type
         self.speed            = speed
         self.downsample       = downsample
         self.use_dynamic_speed = use_dynamic_speed
@@ -92,7 +94,15 @@ class MapManager:
     def _load_map_data(self):
         """ウェイポイント読み込み→ダウンサンプル→速度付与→累積距離計算"""
         # CSV から中心線ウェイポイントを読み込み
-        wpts = np.genfromtxt(self.center_line_path, delimiter=',', usecols=(0, 1))
+        if self.line_type == 'center':
+            wpts = np.genfromtxt(self.center_line_path, delimiter=',', usecols=(0, 1))
+        elif self.line_type == 'race':
+            # レースラインの場合、s, x, y, ... の形式（x=1列目, y=2列目）
+            wpts = np.genfromtxt(self.race_line_path, delimiter=';', usecols=(1, 2))
+        else:
+            raise ValueError(f"Invalid line_type '{self.line_type}' (expected 'center' or 'race')")
+
+        print(f"Loading waypoint type: {self.line_type}")
         wpts = wpts[::self.downsample]
 
         # 速度列を取得
@@ -111,11 +121,13 @@ class MapManager:
         new_map_name: str,
         speed: float = None,
         downsample: int = None,
-        use_dynamic_speed: bool = None
+        use_dynamic_speed: bool = None,
+        line_type: str = None
     ):
         if speed is not None:          self.speed            = speed
         if downsample is not None:     self.downsample       = downsample
         if use_dynamic_speed is not None: self.use_dynamic_speed = use_dynamic_speed
+        if line_type is not None:      self.line_type = line_type
 
         self._set_map_name(new_map_name)
         self._load_map_data()
