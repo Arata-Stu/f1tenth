@@ -16,3 +16,6 @@ render_mode: human               # Gym 環境の render モード（None なら 
 # モデル評価設定
 eval:
   ckpt_path: ./checkpoints/best_model.pth  # 評価に使う学習済みモデルのパス
+  steer_range: 0.4
+  speed_range: 10.0
+

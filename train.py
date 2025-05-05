@@ -17,7 +17,7 @@ def main(cfg: DictConfig):
     # 設定表示
     print(OmegaConf.to_yaml(cfg))
 
-    # HDF5 ファイル自動探索
+    # HDF5 自動探索
     data_dir = cfg.data.data_dir
     files = glob.glob(os.path.join(data_dir, "*", "*.h5"))
     if not files:
@@ -46,12 +46,16 @@ def main(cfg: DictConfig):
     optimizer = optim.Adam(model.parameters(), lr=cfg.train.lr)
     criterion = nn.MSELoss()
 
-    # TensorBoard 用 SummaryWriter
-    tb_log_dir = cfg.train.log_dir
-    os.makedirs(tb_log_dir, exist_ok=True)
-    writer = SummaryWriter(log_dir=tb_log_dir)
+    # スケーリングパラメータ
+    steer_range = cfg.train.steer_range
+    speed_range = cfg.train.speed_range
 
-    # ベストモデル保存先
+    # TensorBoard
+    tb_dir = cfg.train.log_dir
+    os.makedirs(tb_dir, exist_ok=True)
+    writer = SummaryWriter(log_dir=tb_dir)
+
+    # ベストモデル保存
     best_loss = float('inf')
     ckpt_path = cfg.train.ckpt_path
     os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
@@ -62,13 +66,21 @@ def main(cfg: DictConfig):
         desc = f"Epoch {epoch+1}/{cfg.train.epochs}"
         for batch in tqdm(loader, desc=desc, leave=False):
             model.train()
-            # 正規化: scan を 0~1 にスケーリング
+            # 入力スキャン正規化
             scan = batch['scan'].to(device).unsqueeze(1) / 30.0  # (B,1,L)
-            prev = batch['prev'].to(device)                      # (B,A)
-            target = batch['action'].to(device)                  # (B,A)
+            prev = batch['prev'].to(device)                     # (B,A)
+            target = batch['action'].to(device)                 # (B,A)
 
-            pred = model(scan, prev)
-            loss = criterion(pred, target)
+            # ターゲットを[-1,1]に正規化
+            steer_t = target[:, 0] / steer_range
+            speed_t = 2 * (target[:, 1] / speed_range) - 1.0
+            target_norm = torch.stack([steer_t, speed_t], dim=1)
+
+            # モデル出力 raw_pred
+            raw_pred = model(scan, prev)                       # (B,2) in [-1,1]
+
+            # 損失計算: raw_pred vs. target_norm
+            loss = criterion(raw_pred, target_norm)
 
             optimizer.zero_grad()
             loss.backward()
@@ -78,16 +90,14 @@ def main(cfg: DictConfig):
 
         avg_loss = epoch_loss / len(dataset)
         tqdm.write(f"{desc} loss={avg_loss:.6f}")
-        # TensorBoard にスカラー記録
         writer.add_scalar('Loss/train', avg_loss, epoch+1)
 
-        # ベストモデルの保存
+        # ベストモデル更新
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), ckpt_path)
             tqdm.write(f"Best model updated (loss={best_loss:.6f}) -> {ckpt_path}")
 
-    # 終了処理
     writer.close()
     print(f"Training completed. Best model saved at {ckpt_path} (loss={best_loss:.6f})")
 
