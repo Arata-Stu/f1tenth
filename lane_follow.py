@@ -38,7 +38,7 @@ env = F110Env(map=map_manager.map_path, map_ext=map_manager.map_ext, num_beams=n
 env = F110Wrapper(env, map_manager=map_manager)
 obs, info = env.reset()
 
-from src.planner.purePusuit import PurePursuitPlanner #/src/planner/pure_pursuit.py から import
+from planner.purePursuit import PurePursuitPlanner #/src/planner/pure_pursuit.py から import
 
 wheelbase=(0.17145+0.15875)
 planner = PurePursuitPlanner(wheelbase=wheelbase, map_manager=map_manager, lookahead=0.3 ,max_reacquire=20.) 

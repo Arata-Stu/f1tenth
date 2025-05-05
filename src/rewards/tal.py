@@ -1,5 +1,5 @@
 from .base import RewardBase
-from ..planner.purePusuit import PurePursuitPlanner
+from ..planner.purePursuit import PurePursuitPlanner
 
 class TALReward(RewardBase):
     def __init__(self, map_manager, steer_range, speed_range, steer_w=0.4, speed_w=0.4, bias= 0.25, ratio=1.0):
