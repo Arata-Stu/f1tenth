@@ -51,7 +51,7 @@ def main(cfg: DictConfig):
     render_mode = cfg.render_mode
 
     # 出力ディレクトリ
-    out_dir = cfg.collect_data.output_path
+    out_dir = cfg.output_dir
     os.makedirs(out_dir, exist_ok=True)
 
     num_episodes = cfg.collect_data.num_episodes
