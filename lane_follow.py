@@ -14,12 +14,12 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
 
     # --- Matplotlib センサ可視化設定 ---
-    plt.ion()
-    fig = plt.figure(figsize=(6,6))
-    ax = fig.add_subplot(111, polar=True)
-    line, = ax.plot([], [], lw=2)
-    ax.set_ylim(0, cfg.max_lidar_range)  # YAML 側で max_lidar_range を指定しておくと便利
-
+    if cfg.visualize_lidar:
+        plt.ion()
+        fig = plt.figure(figsize=(6,6))
+        ax = fig.add_subplot(111, polar=True)
+        line, = ax.plot([], [], lw=2)
+        ax.set_ylim(0, cfg.max_lidar_range)
     # --- MapManager & 環境初期化 ---
     map_cfg = cfg.envs.map
     
@@ -27,20 +27,12 @@ def main(cfg: DictConfig):
     map_manager = MapManager(
         map_name=MAP_DICT[0],
         map_ext=map_cfg.ext,
+        line_type=map_cfg.line_type,
         speed=map_cfg.speed,
         downsample=map_cfg.downsample,
         use_dynamic_speed=map_cfg.use_dynamic_speed,
         a_lat_max=map_cfg.a_lat_max,
-        lookahead=map_cfg.lookahead,
-        lookbehind=map_cfg.lookbehind,
-        a_acc_max=map_cfg.a_acc_max,
-        a_dec_max=map_cfg.a_dec_max,
-        sigma_accel=map_cfg.sigma_accel,
-        sigma_decel=map_cfg.sigma_decel,
-        window_size=map_cfg.window_size,
-        theta1=map_cfg.theta1,
-        theta2=map_cfg.theta2,
-        speed_factors=map_cfg.speed_factors
+        smooth_sigma=map_cfg.smooth_sigma
     )
     env = F110Env(
         map=map_manager.map_path,
@@ -77,11 +69,11 @@ def main(cfg: DictConfig):
             # ステップ実行
             next_obs, reward, terminated, truncated, info = env.step(action)
 
-            # LiDAR 可視化
-            scan   = obs["scans"][0]
-            # angles = np.linspace(-cfg.lidar_fov, cfg.lidar_fov, cfg.num_beams)
-            # line.set_data(angles, scan)
-            # plt.pause(0.0001)
+            if cfg.visualize_lidar:
+                scan   = obs["scans"][0]
+                angles = np.linspace(-cfg.lidar_fov, cfg.lidar_fov, cfg.num_beams)
+                line.set_data(angles, scan)
+                plt.pause(0.0001)
 
             # Gym 環境可視化
             env.render(mode=cfg.render_mode) if cfg.render_mode else env.render()

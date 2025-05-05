@@ -12,6 +12,9 @@ lidar_fov: 2.35
 
 render: True
 render_mode: human ## human or human_fast
+
+visualize_lidar: true  # LiDAR 可視化を有効にするか
+
 hydra:
   run:
     dir: ./outputs/lane_follow/${now:%Y-%m-%d}/${now:%H-%M-%S}
