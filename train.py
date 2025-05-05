@@ -7,12 +7,14 @@ import torch.optim as optim
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 from src.data.h5_dataset import H5Dataset
 from src.models.TinyLidarNet import TinyLidarNet
 
 @hydra.main(config_path="config", config_name="train", version_base="1.2")
 def main(cfg: DictConfig):
+    # 設定表示
     print(OmegaConf.to_yaml(cfg))
 
     # HDF5 ファイル自動探索
@@ -44,6 +46,11 @@ def main(cfg: DictConfig):
     optimizer = optim.Adam(model.parameters(), lr=cfg.train.lr)
     criterion = nn.MSELoss()
 
+    # TensorBoard 用 SummaryWriter
+    tb_log_dir = cfg.train.tb_log_dir
+    os.makedirs(tb_log_dir, exist_ok=True)
+    writer = SummaryWriter(log_dir=tb_log_dir)
+
     # ベストモデル保存先
     best_loss = float('inf')
     ckpt_path = cfg.train.ckpt_path
@@ -52,12 +59,13 @@ def main(cfg: DictConfig):
     # トレーニングループ
     for epoch in range(cfg.train.epochs):
         epoch_loss = 0.0
-        # バッチ進捗表示
-        for batch in tqdm(loader, desc=f"Epoch {epoch+1}/{cfg.train.epochs}", leave=False):
+        desc = f"Epoch {epoch+1}/{cfg.train.epochs}"
+        for batch in tqdm(loader, desc=desc, leave=False):
             model.train()
-            scan = batch['scan'].to(device).unsqueeze(1)  # (B,1,L)
-            prev = batch['prev'].to(device)               # (B,A)
-            target = batch['action'].to(device)           # (B,A)
+            # 正規化: scan を 0~1 にスケーリング
+            scan = batch['scan'].to(device).unsqueeze(1) / 30.0  # (B,1,L)
+            prev = batch['prev'].to(device)                      # (B,A)
+            target = batch['action'].to(device)                  # (B,A)
 
             pred = model(scan, prev)
             loss = criterion(pred, target)
@@ -69,7 +77,9 @@ def main(cfg: DictConfig):
             epoch_loss += loss.item() * scan.size(0)
 
         avg_loss = epoch_loss / len(dataset)
-        tqdm.write(f"Epoch {epoch+1}/{cfg.train.epochs} loss={avg_loss:.6f}")
+        tqdm.write(f"{desc} loss={avg_loss:.6f}")
+        # TensorBoard にスカラー記録
+        writer.add_scalar('Loss/train', avg_loss, epoch+1)
 
         # ベストモデルの保存
         if avg_loss < best_loss:
@@ -77,6 +87,8 @@ def main(cfg: DictConfig):
             torch.save(model.state_dict(), ckpt_path)
             tqdm.write(f"Best model updated (loss={best_loss:.6f}) -> {ckpt_path}")
 
+    # 終了処理
+    writer.close()
     print(f"Training completed. Best model saved at {ckpt_path} (loss={best_loss:.6f})")
 
 if __name__ == "__main__":

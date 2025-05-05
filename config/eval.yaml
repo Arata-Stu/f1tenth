@@ -1,0 +1,18 @@
+# config/eval.yaml
+defaults:
+  - vehicle: default
+  - envs: default 
+
+
+
+# LiDAR／可視化設定
+num_beams: 1080                  # LiDAR ビーム本数
+lidar_fov: 3.141592653589793     # LiDAR の視野角（ラジアン）
+max_lidar_range: 30.0            # 可視化時の半径最大値（メートル）
+visualize_lidar: false            # LiDAR スキャンを polar プロット表示するか
+render_mode: human               # Gym 環境の render モード（None なら env.render()）
+
+
+# モデル評価設定
+eval:
+  ckpt_path: ./checkpoints/best_model.pth  # 評価に使う学習済みモデルのパス
