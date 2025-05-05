@@ -47,8 +47,8 @@ def main(cfg: DictConfig):
     )
 
     # レンダリング設定
-    render_flag = getattr(cfg.collect_data, 'render', True)
-    render_mode = getattr(cfg.collect_data, 'render_mode', None)
+    render_flag = cfg.render
+    render_mode = cfg.render_mode
 
     # 出力ディレクトリ
     out_dir = cfg.collect_data.output_path
