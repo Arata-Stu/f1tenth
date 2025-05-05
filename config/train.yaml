@@ -5,4 +5,4 @@ train:
   num_workers: 4
   lr: 1e-3
   epochs: 20
-  save_path: ./ckpts/tinylidarnet.pth
+  ckpt_path: ./ckpts/tinylidarnet.pth

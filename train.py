@@ -43,14 +43,15 @@ def main(cfg: DictConfig):
     optimizer = optim.Adam(model.parameters(), lr=cfg.train.lr)
     criterion = nn.MSELoss()
 
-    # ベストモデル保存用
+    # ベストモデル保存先
     best_loss = float('inf')
     ckpt_path = cfg.train.ckpt_path
     os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
 
+    # トレーニングループ
     for epoch in range(cfg.train.epochs):
         model.train()
-        total_loss = 0.0
+        epoch_loss = 0.0
         for batch in loader:
             scan = batch['scan'].to(device).unsqueeze(1)  # (B,1,L)
             prev = batch['prev'].to(device)               # (B,A)
@@ -63,23 +64,18 @@ def main(cfg: DictConfig):
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item() * scan.size(0)
+            epoch_loss += loss.item() * scan.size(0)
 
-        avg_loss = total_loss / len(dataset)
+        avg_loss = epoch_loss / len(dataset)
         print(f"Epoch {epoch+1}/{cfg.train.epochs} loss={avg_loss:.6f}")
 
         # ベストモデルの保存
         if avg_loss < best_loss:
             best_loss = avg_loss
             torch.save(model.state_dict(), ckpt_path)
-            print(f"New best model (loss={best_loss:.6f}) saved to {ckpt_path}")
+            print(f"Best model updated (loss={best_loss:.6f}) -> {ckpt_path}")
 
-    # 最終モデルの保存（オプション）
-    final_path = cfg.train.save_path
-    os.makedirs(os.path.dirname(final_path), exist_ok=True)
-    torch.save(model.state_dict(), final_path)
-    print(f"Final model saved to {final_path}")
-
+    print(f"Training completed. Best model saved at {ckpt_path} (loss={best_loss:.6f})")
 
 if __name__ == "__main__":
     main()
