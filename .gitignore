@@ -1,5 +1,6 @@
 datasets
 outputs/
+data
 wandb/
 env
 ckpts/
